@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ক্যালকুলেটর প্রো ম্যাক্স</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Bengali:wght@400;500;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#040405; --panel:#0c0e11; --panel2:#101317;
+    --cyan:#00f3ff; --pink:#ff0057; --amber:#ffcc00; --green:#00ff88;
+    --danger:#ff2a1f; --muted:#5d6470; --btn:#1a1d22;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0;
+     font-family:'Noto Sans Bengali','Space Mono',sans-serif; touch-action:manipulation; -webkit-tap-highlight-color:transparent;}
+  html,body{ background:var(--bg); color:#fff; min-height:100vh; overflow:hidden; }
+  body{ display:flex; justify-content:center; align-items:center; }
+
+  /* ---------- ambient CRT atmosphere ---------- */
+  #crt{
+    position:fixed; inset:0; pointer-events:none; z-index:998; opacity:.5;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 2px, transparent 3px);
+    mix-blend-mode:overlay;
+  }
+  #vignette{ position:fixed; inset:0; pointer-events:none; z-index:997;
+    box-shadow: inset 0 0 140px rgba(0,0,0,0.85); }
+
+  #flashbang{ position:fixed; inset:0; background:#fff; z-index:999; opacity:0; pointer-events:none; transition:opacity .08s; }
+  .flash-active{ opacity:1 !important; }
+
+  .shake{ animation: shakeFrame .35s; }
+  @keyframes shakeFrame{
+    0%,100%{ transform:translate(0,0) rotate(0); }
+    20%{ transform:translate(-6px,3px) rotate(-1deg); }
+    40%{ transform:translate(5px,-4px) rotate(1deg); }
+    60%{ transform:translate(-4px,2px) rotate(-1deg); }
+    80%{ transform:translate(3px,-2px) rotate(1deg); }
+  }
+
+  .crack-overlay{
+    position:absolute; inset:0; z-index:80; pointer-events:none; opacity:0; transition:opacity .15s;
+    background:
+      radial-gradient(circle at 50% 45%, transparent 0 10px, rgba(255,255,255,.55) 10px 11px, transparent 12px),
+      repeating-conic-gradient(from 0deg at 50% 45%, rgba(255,255,255,.45) 0deg 1.2deg, transparent 1.2deg 14deg);
+  }
+  .crack-active{ opacity:1 !important; }
+
+  /* ---------- app shell ---------- */
+  .app-container{
+    width:100%; max-width:380px; height:100vh; max-height:760px; background:var(--panel);
+    border-radius:36px; box-shadow:0 0 50px rgba(0,243,255,.12);
+    border:1px solid rgba(0,243,255,.18); position:relative; overflow:hidden;
+    display:flex; flex-direction:column; transition:transform .6s ease-in-out;
+  }
+  .inverted{ transform:rotate(180deg) scale(.95) !important; box-shadow:0 0 60px rgba(255,0,87,.55) !important; }
+
+  /* status bar */
+  .statusbar{ display:flex; align-items:center; justify-content:space-between;
+    padding:10px 18px 6px; font-family:'Space Mono',monospace; font-size:.72rem; color:var(--muted); z-index:5; }
+  .statusbar .rec{ color:var(--danger); display:none; align-items:center; gap:5px; font-weight:700; }
+  .statusbar .rec.on{ display:flex; }
+  .statusbar .rec .dot{ width:7px; height:7px; border-radius:50%; background:var(--danger); animation:blink 1s infinite; }
+  @keyframes blink{ 50%{ opacity:.15; } }
+  .batt{ display:flex; align-items:center; gap:5px; }
+  .batt-shell{ width:22px; height:11px; border:1px solid var(--muted); border-radius:3px; position:relative; }
+  .batt-shell::after{ content:''; position:absolute; right:-4px; top:3px; width:2px; height:5px; background:var(--muted); border-radius:1px; }
+  .batt-fill{ height:100%; background:var(--green); width:89%; transition:width .6s, background .6s; }
+
+  /* rage meter — signature element */
+  .rage-wrap{ padding:2px 18px 10px; z-index:5; }
+  .rage-label{ display:flex; justify-content:space-between; font-size:.68rem; color:var(--muted); margin-bottom:4px; font-family:'Space Mono',monospace; letter-spacing:.5px;}
+  .rage-label b{ color:var(--pink); font-weight:700; }
+  .rage-track{ height:7px; border-radius:6px; background:#1a1d22; overflow:hidden; }
+  .rage-fill{ height:100%; width:0%; border-radius:6px;
+    background:linear-gradient(90deg,var(--cyan),var(--amber),var(--danger));
+    transition:width .5s ease; }
+
+  .screen{ position:absolute; inset:0; padding:18px; display:flex; flex-direction:column;
+    transition:transform .4s, opacity .3s; background:var(--panel); }
+  .hidden{ transform:translateX(120%); opacity:0; pointer-events:none; }
+
+  .toast{ position:absolute; top:120px; left:50%; transform:translateX(-50%);
+    background:var(--danger); color:#fff; padding:11px 18px; border-radius:18px; font-weight:700;
+    opacity:0; transition:opacity .25s; pointer-events:none; z-index:120; max-width:88%;
+    text-align:center; font-size:.92rem; box-shadow:0 6px 18px rgba(255,42,31,.45); }
+
+  .ghost-cursor{ position:absolute; top:78px; left:50%; transform:translateX(-50%);
+    color:var(--muted); font-size:.78rem; opacity:0; transition:opacity .2s; font-family:'Space Mono',monospace; z-index:60; }
+  .ghost-cursor.show{ opacity:1; }
+
+  .display-area{ flex:.75; display:flex; flex-direction:column; justify-content:flex-end; align-items:flex-end;
+    padding:18px; margin-top:6px; margin-bottom:16px; background:#070809; border-radius:20px;
+    border:1px solid #232730; position:relative; overflow:hidden; }
+  #history{ font-size:1.05rem; color:#666; min-height:24px; font-family:'Space Mono',monospace; }
+  #current-input{ font-size:2.35rem; font-weight:500; color:var(--cyan);
+    text-shadow:0 0 16px rgba(0,243,255,.45); word-wrap:break-word; word-break:break-all; line-height:1.15; }
+
+  .unlock-box{ background:linear-gradient(135deg, rgba(255,0,87,.12), rgba(0,243,255,.12));
+    border:2px solid var(--cyan); border-radius:22px; padding:13px; text-align:center; margin-bottom:14px;
+    display:none; animation:pulseBox 1.5s infinite alternate; cursor:pointer; }
+  @keyframes pulseBox{ from{ box-shadow:0 0 6px rgba(0,243,255,.25); } to{ box-shadow:0 0 22px rgba(0,243,255,.55); } }
+  .unlock-btn{ background:transparent; color:#fff; border:none; font-weight:700; font-size:1.08rem; }
+
+  .keypad{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; position:relative; flex:1.25; }
+  .btn{ background:var(--btn); color:#fff; border:none; font-size:1.5rem; border-radius:16px;
+    cursor:pointer; transition:transform .08s, background .15s; display:flex; justify-content:center; align-items:center;
+    position:relative; user-select:none; }
+  .btn:active{ transform:scale(.86); background:#262a31; }
+  .btn.operator{ color:var(--cyan); background:#13232b; font-size:1.65rem; }
+  .btn.clear{ color:var(--danger); background:#2a1717; font-weight:700; }
+  .btn.help{ color:var(--amber); background:#2a2614; }
+  .btn.equals{ background:linear-gradient(135deg,var(--cyan),#0058ff); color:#000; font-weight:700;
+    z-index:10; font-size:1.2rem; }
+
+  /* hacker loading terminal */
+  #loader-screen{ position:absolute; inset:0; background:rgba(2,2,3,.98); z-index:50;
+    display:flex; flex-direction:column; justify-content:center; padding:26px;
+    opacity:0; pointer-events:none; transition:opacity .2s; }
+  #loader-screen.active{ opacity:1; pointer-events:all; }
+  .terminal-text{ color:#0f0; font-family:'Space Mono',monospace; font-size:.98rem; margin-bottom:14px; line-height:1.5; min-height:50px;}
+  .terminal-text .ok{ color:#0f0; }
+  .terminal-text .warn{ color:var(--amber); }
+  .terminal-text .joke{ color:var(--pink); }
+  .spinner{ border:4px solid #033; border-top:4px solid #0f0; border-radius:50%; width:48px; height:48px;
+    animation:spin .8s linear infinite; margin:26px auto; }
+  @keyframes spin{ 100%{ transform:rotate(360deg); } }
+  .prog-track{ height:6px; background:#022; border-radius:6px; overflow:hidden; margin-top:6px; }
+  .prog-fill{ height:100%; width:0%; background:#0f0; transition:width .3s linear; }
+
+  /* boot screen */
+  #boot-screen{ position:fixed; inset:0; background:#000; z-index:1100; display:flex; flex-direction:column;
+    justify-content:center; padding:30px; color:#0f0; font-family:'Space Mono',monospace; font-size:.95rem; line-height:1.6; }
+  #boot-screen .skip{ position:absolute; bottom:30px; right:30px; color:var(--muted); font-size:.75rem; }
+
+  /* paywall */
+  .pay-screen{ background:#070809; align-items:center; justify-content:flex-start; overflow-y:auto; }
+  .pay-header h2{ color:var(--cyan); margin-bottom:6px; text-align:center; font-size:1.55rem; margin-top:6px;}
+  .pay-header p{ color:#777; font-size:.92rem; margin-bottom:18px; text-align:center; }
+  .plan-card{ background:#111418; border:1px solid #2a2e36; width:100%; padding:18px; border-radius:18px;
+    margin-bottom:12px; text-align:center; cursor:pointer; }
+  .plan-card small{ color:var(--muted); display:block; margin-top:4px; font-size:.72rem;}
+  .plan-price{ font-size:1.55rem; color:var(--pink); font-weight:900; }
+  .discount-row{ display:flex; gap:8px; width:100%; margin-bottom:12px; }
+  .discount-row input{ flex:1; background:#0d0f12; border:1px solid #2a2e36; border-radius:12px; color:#fff;
+    padding:12px; font-size:.85rem; }
+  .discount-row button{ background:var(--btn); border:none; color:var(--cyan); border-radius:12px; padding:0 16px; font-weight:700; }
+  .payment-methods{ display:flex; gap:8px; width:100%; flex-wrap:wrap; }
+  .pay-btn{ flex:1; min-width:30%; padding:13px; border:none; border-radius:11px; font-weight:700; cursor:pointer; font-size:.85rem; }
+
+  /* finale / poor screen */
+  .poor-screen{ background:#000; text-align:center; justify-content:center; align-items:center; }
+  .poor-screen h1{ color:var(--danger); font-size:1.5rem; margin-bottom:14px; line-height:1.4; }
+  .poor-emoji{ font-size:6rem; margin-bottom:20px; animation:shakeEmoji .5s infinite; }
+  @keyframes shakeEmoji{ 0%,50%,100%{ transform:rotate(0); } 25%{ transform:rotate(13deg); } 75%{ transform:rotate(-13deg); } }
+  .score-card{ background:#0d0f12; border:1px solid #2a2e36; border-radius:16px; padding:16px 22px; margin-top:6px; }
+  .score-card .num{ color:var(--pink); font-size:1.8rem; font-weight:900; font-family:'Space Mono',monospace; }
+  .back-btn{ background:transparent; border:2px solid #444; color:#888; padding:14px 36px; border-radius:30px;
+    cursor:pointer; font-weight:700; margin-top:28px; }
+
+  @media (prefers-reduced-motion: reduce){
+    #crt{ display:none; } .poor-emoji{ animation:none; } .shake{ animation:none; }
+  }
+</style>
+</head>
+<body>
+
+  <div id="boot-screen">
+    <div id="boot-text">সিস্টেম চেক চালু হচ্ছে...</div>
+    <div class="skip">এগিয়ে যেতে স্ক্রিনে ট্যাপ করুন</div>
+  </div>
+
+  <div id="crt"></div>
+  <div id="vignette"></div>
+  <div id="flashbang"></div>
+
+  <div class="app-container" id="app-box">
+
+    <div class="statusbar">
+      <span id="clock">9:41</span>
+      <span class="rec" id="rec-indicator"><span class="dot"></span>REC</span>
+      <span class="batt"><span id="batt-pct">89%</span><span class="batt-shell"><span class="batt-fill" id="batt-fill"></span></span></span>
+    </div>
+    <div class="rage-wrap">
+      <div class="rage-label"><span>মেজাজ মিটার</span><b id="rage-tag">শান্ত 😌</b></div>
+      <div class="rage-track"><div class="rage-fill" id="rage-fill"></div></div>
+    </div>
+
+    <div id="toast" class="toast">ভুল হয়েছে</div>
+    <div id="ghost-cursor" class="ghost-cursor">কেউ একজন টাইপ করছে...</div>
+
+    <div id="loader-screen">
+      <div id="terminal-output" class="terminal-text">অংক প্রসেস হচ্ছে...</div>
+      <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+      <div class="spinner"></div>
+    </div>
+
+    <div id="calc-screen" class="screen">
+      <div class="display-area">
+        <div class="crack-overlay" id="crack-overlay"></div>
+        <div id="history"></div>
+        <div id="current-input">0</div>
+      </div>
+
+      <div id="trap-box" class="unlock-box" onclick="goToSubscription()">
+        <button class="unlock-btn">সঠিক উত্তর আনলক করুন 🔓</button>
+      </div>
+
+      <div class="keypad" id="keypad">
+        <button class="btn clear" onclick="handleClearClick(this)" ontouchstart="dodgeButton(event,this)" onmouseover="dodgeButton(event,this)">C</button>
+        <button class="btn operator" onclick="appendOperator('/',this)">/</button>
+        <button class="btn operator" onclick="appendOperator('*',this)">*</button>
+        <button class="btn operator" onclick="appendOperator('-',this)">-</button>
+
+        <button class="btn num-btn" onclick="handleNumClick(this)">7</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">8</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">9</button>
+        <button class="btn operator" onclick="appendOperator('+',this)">+</button>
+
+        <button class="btn num-btn" onclick="handleNumClick(this)">4</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">5</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">6</button>
+
+        <button id="equals-btn" class="btn equals" style="grid-row:span 2;height:100%;"
+          ontouchstart="dodgeButton(event,this)" onmouseover="dodgeButton(event,this)" onclick="initiateFakeLoading()">Ans/=</button>
+
+        <button class="btn num-btn" onclick="handleNumClick(this)">1</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">2</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">3</button>
+
+        <button class="btn help" onclick="triggerHelp()">?</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">0</button>
+        <button class="btn num-btn" onclick="handleNumClick(this)">.</button>
+      </div>
+    </div>
+
+    <div id="pay-screen" class="screen hidden pay-screen">
+      <div class="pay-header">
+        <h2>প্রিমিয়াম ক্যালকুলেটর</h2>
+        <p>সঠিক হিসাব পেতে সাবস্ক্রাইব করুন।</p>
+      </div>
+      <div class="plan-card" onclick="triggerPoorScreen()"><h3 style="color:#fff">ডেইলি প্ল্যান</h3><div class="plan-price">৳২৫,৯৯৯/দিন</div><small>২৪ ঘণ্টা পর অটো-রিনিউ (বাতিল করা যায় না)</small></div>
+      <div class="plan-card" onclick="triggerPoorScreen()" style="border-color:var(--pink)"><h3 style="color:var(--pink)">উইকলি প্ল্যান</h3><div class="plan-price">৳৯৯,৯৯৯/সপ্তাহ</div><small>২টা কিডনি ফ্রি গিফট সহ</small></div>
+      <div class="plan-card" onclick="triggerPoorScreen()" style="border-color:var(--amber)"><h3 style="color:var(--amber)">লাইফটাইম EMI</h3><div class="plan-price">৳৯৯/মাস × ৯৯ বছর</div><small>আপনার নাতিও কিস্তি দেবে</small></div>
+
+      <div class="discount-row">
+        <input id="discount-input" placeholder="ডিসকাউন্ট কোড দিন" />
+        <button onclick="discountTrap()">Apply</button>
+      </div>
+
+      <div class="payment-methods">
+        <button class="pay-btn" style="background:#df146e;color:#fff" onclick="triggerPoorScreen()">bKash</button>
+        <button class="pay-btn" style="background:#f26522;color:#fff" onclick="triggerPoorScreen()">Nagad</button>
+        <button class="pay-btn" style="background:#111;color:#0f0;border:1px solid #0f0;flex-basis:100%" onclick="smileTrap()">📷 হাসি দিয়ে পে করুন</button>
+        <button class="pay-btn" style="background:#111;color:red;border:1px solid red;flex-basis:48%" onclick="kidneyTrap()">কিডনি বিক্রি করুন</button>
+        <button class="pay-btn" style="background:#0a0a0a;color:#0f0;border:1px solid #0f0;flex-basis:48%" onclick="loanTrap()">ব্যাংক ডাকাতি করুন</button>
+        <button class="pay-btn" style="background:#0a0a0a;color:var(--cyan);border:1px dashed var(--cyan);flex-basis:100%" onclick="shareTrap()">বন্ধুদের শেয়ার করে ফ্রি আনলক করুন</button>
+      </div>
+    </div>
+
+    <div id="poor-screen" class="screen hidden poor-screen">
+      <div class="poor-emoji">🤣</div>
+      <h1 id="poor-headline">You are too poor to subscribe<br>তোর কাছে তো টাকা নাই 🤣</h1>
+      <div class="score-card">
+        <div style="color:var(--muted);font-size:.75rem;margin-bottom:4px;">তোর ভোগান্তি স্কোর</div>
+        <div class="num" id="final-score">0</div>
+      </div>
+      <button class="back-btn" onclick="resetApp()">লজ্জা নিয়ে ফিরে যান</button>
+    </div>
+
+    <div id="meltdown-screen" class="screen hidden poor-screen" style="background:#1a0000;">
+      <div class="poor-emoji">💥</div>
+      <h1>সিস্টেম মেল্টডাউন!<br>তোর মেজাজ আমার অ্যাপ ভেঙে দিয়েছে 😂</h1>
+      <button class="back-btn" onclick="endMeltdown()" style="border-color:var(--cyan);color:var(--cyan)">ঠিক আছে, শান্ত হচ্ছি</button>
+    </div>
+
+  </div>
+
+<script>
+/* ============ STATE ============ */
+let currentInput='0', historyText='', shouldResetDisplay=false;
+let rage=0, prankCount=0, tapStreak=[], lastOpPress={op:null,t:0};
+let idleTimer=null, ambientTimer=null, decoyTimer=null;
+let audioCtx=null;
+
+const display=document.getElementById('current-input');
+const historyEl=document.getElementById('history');
+const trapBox=document.getElementById('trap-box');
+const toast=document.getElementById('toast');
+const equalsBtn=document.getElementById('equals-btn');
+const appBox=document.getElementById('app-box');
+const ghostCursor=document.getElementById('ghost-cursor');
+const recIndicator=document.getElementById('rec-indicator');
+const battFill=document.getElementById('batt-fill');
+const battPct=document.getElementById('batt-pct');
+const rageFill=document.getElementById('rage-fill');
+const rageTag=document.getElementById('rage-tag');
+const crackOverlay=document.getElementById('crack-overlay');
+
+/* ============ CONTENT POOLS ============ */
+const clearRejections=["পারব না মুছতে!","মুছতে হলে টাকা দে!","আগে নিজে হিসাব করা শেখ!","আমি রিফিউজ করলাম!",
+  "কান্নাকাটি বন্ধ কর!","তোর বাপে মুছবে?","C মানে Clear না, C মানে 'Can't'!","মুছে দিলে তুই খুশি হবি তো? হবি না।"];
+const fakeAlerts=["বিকাশ থেকে ৫০০ টাকা কাটা হলো! 😱","আপনার গ্যালারির ১৩৪টি ছবি আপলোড হচ্ছে...",
+  "Front Camera On করা হয়েছে! 📸","Warning: Battery draining 10% per sec!","হিস্ট্রি ফ্যামিলি গ্রুপে সেন্ড হয়ে গেছে!",
+  "অজানা নাম্বার থেকে ৩টা মিসড কল!","আপনার লোকেশন শেয়ার হচ্ছে...","এই অ্যাপ আপনাকে ফলো করছে গত ৫ মিনিট ধরে।"];
+const absurdMath=["মস্তিস্ক নট ফাউন্ড! 🧠❌","অংক কি বাপের জন্মে করিস নাই?","Error 404: Brain Cell Missing",
+  "Infinity... এর চেয়ে তুই গাধা","উত্তর: 'হয়তো'","৪২ (এটাই জীবনের উত্তর, অংকের না)","সার্ভার ক্যালকুলেটরকে দেখে হেসে দিয়েছে 😂"];
+const loaderPhases=[
+  ["আপনার আইপি ট্রেস করা হচ্ছে...","warn"],
+  ["বিকাশ পিন বাইপাস হচ্ছে...","warn"],
+  ["ওহ ভুল হয়ে গেছে, পিন তো 'গাধা' ছিল 😂","joke"],
+  ["গ্যালারির ডেটা কপি হচ্ছে...","warn"],
+  ["আসলে কিছুই হচ্ছে না, এটা প্রাঙ্ক 🤫","joke"],
+  ["ফাঁদ রেডি!","ok"]
+];
+const idleLines=["এখনো আছিস? 👀","তুই চলে যাবি না তো?","আমি দেখছি তোকে...","হিসাব করতে ডর লাগে নাকি?"];
+
+/* ============ UTILS ============ */
+function vibrate(p){ if("vibrate" in navigator) navigator.vibrate(p); }
+function beep(freq=220,dur=.08,type='square'){
+  try{
+    audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type=type; o.frequency.value=freq; g.gain.value=.05;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); g.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+dur);
+    o.stop(audioCtx.currentTime+dur);
+  }catch(e){}
+}
+function showToast(msg,duration=2400){
+  toast.innerText=msg; toast.style.opacity='1';
+  setTimeout(()=>toast.style.opacity='0',duration);
+}
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+function weightedPick(options){
+  const total=options.reduce((s,o)=>s+o.weight,0);
+  let r=Math.random()*total;
+  for(const o of options){ if(r<o.weight) return o.action; r-=o.weight; }
+  return options[options.length-1].action;
+}
+function resetIdleTimer(){
+  clearTimeout(idleTimer);
+  idleTimer=setTimeout(()=>{
+    if(!document.getElementById('calc-screen').classList.contains('hidden')){
+      showToast(pick(idleLines),2200); vibrate(80);
+    }
+  },9000);
+}
+
+/* ============ RAGE METER (signature mechanic) ============ */
+const rageStages=[
+  {max:20,label:'শান্ত 😌'},{max:40,label:'সন্দেহ 🤨'},{max:60,label:'বিরক্ত 😠'},
+  {max:85,label:'ক্ষিপ্ত 🤬'},{max:100,label:'বিস্ফোরণ-প্রায় 💢'}
+];
+function addRage(amount){
+  rage=Math.min(100,rage+amount); prankCount++;
+  rageFill.style.width=rage+'%';
+  const stage=rageStages.find(s=>rage<=s.max)||rageStages[rageStages.length-1];
+  rageTag.innerText=stage.label;
+  if(rage>=100) triggerMeltdown();
+}
+setInterval(()=>{ if(rage>0){ rage=Math.max(0,rage-1); rageFill.style.width=rage+'%';
+  const stage=rageStages.find(s=>rage<=s.max)||rageStages[0]; rageTag.innerText=stage.label; } },3500);
+
+function triggerMeltdown(){
+  clearAllOverlays();
+  document.getElementById('calc-screen').classList.add('hidden');
+  document.getElementById('meltdown-screen').classList.remove('hidden');
+  appBox.classList.add('shake');
+  let flashes=0;
+  const fi=setInterval(()=>{
+    document.getElementById('flashbang').classList.toggle('flash-active');
+    vibrate(60); flashes++;
+    if(flashes>6){ clearInterval(fi); document.getElementById('flashbang').classList.remove('flash-active'); }
+  },140);
+}
+function endMeltdown(){
+  appBox.classList.remove('shake');
+  rage=0; rageFill.style.width='0%'; rageTag.innerText='শান্ত 😌';
+  document.getElementById('meltdown-screen').classList.add('hidden');
+  document.getElementById('calc-screen').classList.remove('hidden');
+  showToast('তুই বাঁচলি এইবার 😏');
+}
+
+/* ============ DISPLAY HELPERS ============ */
+function updateDisplay(){ display.innerText=currentInput; historyEl.innerText=historyText; }
+function clearAllOverlays(){
+  document.getElementById('flashbang').classList.remove('flash-active');
+  crackOverlay.classList.remove('crack-active');
+  appBox.classList.remove('inverted');
+  recIndicator.classList.remove('on');
+}
+
+/* ============ FIBONACCI EASTER EGG ============ */
+const fib=['1','1','2','3','5','8'];
+let fibBuffer=[];
+function checkEasterEgg(num){
+  fibBuffer.push(num); if(fibBuffer.length>fib.length) fibBuffer.shift();
+  if(fibBuffer.join(',')===fib.join(',')){
+    showToast('তুই তো জিনিয়াস! ফিবোনাচি পেয়ে গেছিস 🎉 (৫ সেকেন্ড শান্তি)',2600);
+    vibrate([50,50,50]); beep(660,.15,'sine');
+    rage=Math.max(0,rage-25); rageFill.style.width=rage+'%';
+    window.__eggCooldown=true; setTimeout(()=>window.__eggCooldown=false,5000);
+    fibBuffer=[];
+  }
+}
+
+/* ============ CORE NUMBER HANDLING ============ */
+function processNumber(num){
+  if(currentInput==='0'||shouldResetDisplay){ currentInput=num; shouldResetDisplay=false; }
+  else{ if(num==='.'&&currentInput.includes('.')) return; currentInput+=num; }
+  updateDisplay();
+}
+
+const numberPranks=[
+  { weight:18, action:(num)=>{ // ghost typing
+      showToast('ভূত টাইপ করতেছে! 👻'); vibrate(70); beep(180,.05);
+      const extra=Math.floor(Math.random()*10).toString()+Math.floor(Math.random()*10).toString();
+      processNumber(num+extra); addRage(8);
+  }},
+  { weight:14, action:(num)=>{ // slow-mo lag
+      showToast('ল্যাগ দিচ্ছে... ধরে থাকো');
+      setTimeout(()=>{ processNumber(num); vibrate(50); },1100); addRage(5);
+  }},
+  { weight:12, action:(num)=>{ // heart-attack alert
+      showToast(pick(fakeAlerts),3800); vibrate([100,40,100]); processNumber(num); addRage(10);
+  }},
+  { weight:10, action:(num)=>{ // screen inversion
+      appBox.classList.toggle('inverted'); showToast('গ্র্যাভিটি লস! ফোন উল্টা কর! 🙃');
+      vibrate(120); processNumber(num); addRage(9);
+  }},
+  { weight:10, action:(num)=>{ // flashbang
+      const f=document.getElementById('flashbang'); f.classList.add('flash-active');
+      showToast('ছবি তোলা হলো 📸'); vibrate(90); processNumber(num);
+      setTimeout(()=>f.classList.remove('flash-active'),150); addRage(7);
+  }},
+  { weight:9, action:(num)=>{ // keypad earthquake
+      document.querySelectorAll('.num-btn').forEach(b=>b.style.order=Math.floor(Math.random()*20));
+      showToast('বাটন ভূমিকম্প! 🌀'); vibrate(100); processNumber(num); addRage(8);
+  }},
+  { weight:9, action:(num)=>{ // fake screen recording
+      recIndicator.classList.add('on'); showToast('স্ক্রিন রেকর্ড হচ্ছে... সবাই দেখবে 🎥',3200);
+      processNumber(num); setTimeout(()=>recIndicator.classList.remove('on'),4000); addRage(6);
+  }},
+  { weight:8, action:(num)=>{ // ghost cursor typing in history
+      ghostCursor.classList.add('show'); const old=currentInput;
+      currentInput=''; updateDisplay();
+      setTimeout(()=>{ ghostCursor.classList.remove('show'); currentInput=old; processNumber(num); },650);
+      vibrate(40); addRage(6);
+  }},
+  { weight:40, action:(num)=>{ processNumber(num); } } // normal typing, no prank
+];
+
+const decoyPool=['0','1','2','3','4','5','6','7','8','9'];
+function startDecoyDigits(){
+  decoyTimer=setInterval(()=>{
+    if(document.getElementById('calc-screen').classList.contains('hidden')) return;
+    if(Math.random()<0.10+rage/400){
+      const btns=document.querySelectorAll('.num-btn');
+      const b=btns[Math.floor(Math.random()*btns.length)];
+      if(b.innerText==='.') return;
+      const original=b.innerText; const fake=pick(decoyPool);
+      b.innerText=fake;
+      setTimeout(()=>{ b.innerText=original; },550);
+    }
+  },2600);
+}
+
+function handleNumClick(btn){
+  resetIdleTimer();
+  const num=btn.innerText.trim();
+  checkEasterEgg(num);
+  if(window.__eggCooldown){ processNumber(num); return; }
+  const prankChance=0.34+rage/260;
+  beep(120,.03);
+  if(Math.random()<prankChance){
+    weightedPick(numberPranks)(num);
+  } else {
+    processNumber(num);
+  }
+}
+
+/* ============ OPERATORS ============ */
+function appendOperator(op,btn){
+  resetIdleTimer();
+  const now=Date.now();
+  if(lastOpPress.op===op && now-lastOpPress.t<420){ // rapid double press -> cracked glass
+    crackOverlay.classList.add('crack-active'); showToast('আস্তে চাপ, স্ক্রিন ভাঙবে! 💢',2000);
+    appBox.classList.add('shake'); vibrate([150,60,150]); beep(90,.2,'sawtooth'); addRage(12);
+    setTimeout(()=>{ crackOverlay.classList.remove('crack-active'); appBox.classList.remove('shake'); },900);
+    lastOpPress={op:null,t:0}; return;
+  }
+  lastOpPress={op,t:now};
+
+  let finalOp=op;
+  if(Math.random()<0.16+rage/500){
+    const ops=['+','-','*','/'].filter(o=>o!==op);
+    finalOp=pick(ops);
+    showToast(`'${op}' চাপছিস? আমি '${finalOp}' দিলাম! 😏`); vibrate(70); addRage(9);
+  }
+  if(shouldResetDisplay) shouldResetDisplay=false;
+  const last=currentInput.slice(-1);
+  if(isNaN(last)&&last!=='.') currentInput=currentInput.slice(0,-1)+finalOp;
+  else currentInput+=finalOp;
+  updateDisplay();
+}
+
+/* ============ CLEAR BUTTON ============ */
+function dodgeButton(e,btn){
+  if(Math.random()<0.32+rage/400){
+    if(e) e.preventDefault();
+    const x=(Math.random()*2-1)*100, y=(Math.random()<0.5?-1:1)*(80+Math.random()*100);
+    btn.style.transition='transform .18s ease-out';
+    btn.style.transform=`translate(${x}px, ${y}px)`;
+    showToast('ধরতে পারলি না তো গাধা! 😆'); vibrate(60); addRage(5);
+    setTimeout(()=>{ btn.style.transform='translate(0px,0px)'; },1500);
+  }
+}
+function handleClearClick(btn){
+  resetIdleTimer();
+  if(Math.random()<0.4+rage/350){
+    currentInput=pick(clearRejections); shouldResetDisplay=true; updateDisplay();
+    vibrate(80); addRage(7); return;
+  }
+  currentInput='0'; historyText=''; trapBox.style.display='none'; shouldResetDisplay=false;
+  resetEqualsButton(); clearAllOverlays(); updateDisplay();
+  document.querySelectorAll('.num-btn').forEach(b=>b.style.order=0);
+}
+function resetEqualsButton(){ equalsBtn.style.transform='translate(0px,0px)'; }
+
+function triggerHelp(){
+  resetIdleTimer();
+  showToast('হেল্প লাগবে? ভাই তুই বরং রিকশা চালা! 🛺'); vibrate(60); addRage(3);
+}
+
+/* ============ EQUALS / LOADER ============ */
+function initiateFakeLoading(){
+  resetIdleTimer();
+  resetEqualsButton();
+  if(['+','-','*','/'].includes(currentInput.slice(-1))) return;
+
+  const loader=document.getElementById('loader-screen');
+  const terminal=document.getElementById('terminal-output');
+  const prog=document.getElementById('prog-fill');
+  loader.classList.add('active');
+  terminal.innerHTML='অংক প্রসেস হচ্ছে...';
+  prog.style.width='0%';
+
+  let step=0;
+  const interval=setInterval(()=>{
+    if(step<loaderPhases.length){
+      const [line,cls]=loaderPhases[step];
+      terminal.innerHTML=`<span class="${cls}">${line}</span>`;
+      prog.style.width=Math.round(((step+1)/loaderPhases.length)*100)+'%';
+      vibrate(35); beep(140+step*30,.04);
+      step++;
+    } else {
+      clearInterval(interval); loader.classList.remove('active'); calculateResult();
+    }
+  },850);
+}
+
+function calculateResult(){
+  historyText=currentInput+' =';
+  const r=Math.random();
+  if(r<0.32) currentInput=pick(absurdMath);
+  else if(r<0.62) currentInput=String(Math.floor(Math.random()*9999999)+12345);
+  else currentInput='-০.০০০০০০০০১';
+  updateDisplay(); trapBox.style.display='block'; shouldResetDisplay=true;
+  vibrate(80); addRage(11);
+}
+
+/* ============ PAYWALL TRAPS ============ */
+function kidneyTrap(){ alert('আপনার কিডনি অলরেডি ড্যামেজ! ফ্রেশ কিডনি লাগবে!'); vibrate(70); addRage(6); }
+function loanTrap(){ alert('ব্যাংক ডাকাতি করার মত সাহস তোর নাই! আগে রিকশা ভাড়া দে!'); vibrate(70); addRage(6); }
+function smileTrap(){ alert('হাসি স্কান করা হলো... ফলাফল: হাসিটাও জাল! 😂 পে করা যাবে না।'); vibrate(70); addRage(6); }
+function shareTrap(){ alert('শেয়ার ফিচারটা শুধু তোর কল্পনায় আছে। ফ্রি কিছুই নাই ভাই।'); vibrate(70); addRage(6); }
+function discountTrap(){
+  const code=document.getElementById('discount-input').value.trim();
+  if(code.length===0){ showToast('কোড দিলি না, ছাড়ও পাবি না 😏'); return; }
+  showToast(`কোড "${code}" ভুয়া প্রমাণিত হলো ❌`,2600); vibrate(60); addRage(5);
+}
+
+function goToSubscription(){ switchScreen('calc-screen','pay-screen'); }
+function triggerPoorScreen(){
+  switchScreen('pay-screen','poor-screen');
+  document.getElementById('final-score').innerText=prankCount*7+rage;
+  setTimeout(()=>vibrate([100,50,150]),400);
+}
+function resetApp(){
+  currentInput='0'; historyText=''; trapBox.style.display='none';
+  shouldResetDisplay=false; clearAllOverlays(); updateDisplay();
+  switchScreen('poor-screen','calc-screen');
+}
+function switchScreen(hideId,showId){
+  document.getElementById(hideId).classList.add('hidden');
+  document.getElementById(showId).classList.remove('hidden');
+}
+
+/* ============ AMBIENT EFFECTS (idle, battery) ============ */
+function startAmbient(){
+  let battery=89;
+  ambientTimer=setInterval(()=>{
+    if(document.getElementById('calc-screen').classList.contains('hidden')) return;
+    battery=Math.max(1,battery-(Math.floor(Math.random()*9)+2));
+    battPct.innerText=battery+'%';
+    document.getElementById('batt-fill').style.width=battery+'%';
+    document.getElementById('batt-fill').style.background = battery<25 ? 'var(--danger)' : (battery<55 ? 'var(--amber)' : 'var(--green)');
+    if(Math.random()<0.6) showToast(`ব্যাটারি ${Math.floor(Math.random()*9)+5}% কমে গেছে এই অ্যাপের কারণে! 🔋`,2400);
+    if(battery<=5){ battery=89; document.getElementById('batt-fill').style.background='var(--green)'; }
+  },8000);
+}
+
+/* ============ CLOCK ============ */
+function tickClock(){
+  const d=new Date();
+  const h=d.getHours()%12||12, m=String(d.getMinutes()).padStart(2,'0');
+  document.getElementById('clock').innerText=`${h}:${m}`;
+}
+
+/* ============ BOOT SEQUENCE ============ */
+function runBoot(){
+  const bootText=document.getElementById('boot-screen');
+  const bootLine=document.getElementById('boot-text');
+  const lines=['সিস্টেম চেক চালু হচ্ছে...','ভাইরাস স্ক্যান হচ্ছে... ০%','ভাইরাস স্ক্যান হচ্ছে... ৬৪%',
+    'একটা ভাইরাস পাওয়া গেছে: তুই নিজেই 😂','ক্যালকুলেটর.exe লোড হচ্ছে...'];
+  let i=0;
+  const iv=setInterval(()=>{
+    i++; if(i<lines.length){ bootLine.innerText=lines[i]; } else { clearInterval(iv); dismissBoot(); }
+  },520);
+  function dismissBoot(){
+    bootText.style.transition='opacity .4s'; bootText.style.opacity='0';
+    setTimeout(()=>{ bootText.style.display='none'; },420);
+  }
+  bootText.addEventListener('click',dismissBoot,{once:true});
+}
+
+/* ============ INIT ============ */
+window.addEventListener('load',()=>{
+  runBoot();
+  tickClock(); setInterval(tickClock,15000);
+  startAmbient(); startDecoyDigits(); resetIdleTimer();
+  updateDisplay();
+});
+</script>
+</body>
+</html>
